@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rx Analytics — Pharmacy Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #07090f;
+  --s1:       #0d1120;
+  --s2:       #121829;
+  --s3:       #192235;
+  --border:   #1c2d47;
+  --c1:       #38bdf8;  /* sky */
+  --c2:       #818cf8;  /* indigo */
+  --c3:       #34d399;  /* emerald */
+  --c4:       #fb923c;  /* orange */
+  --c5:       #f472b6;  /* pink */
+  --red:      #f87171;
+  --yellow:   #fbbf24;
+  --text:     #e2e8f0;
+  --muted:    #475569;
+  --muted2:   #64748b;
+  --fh:       'Syne', sans-serif;
+  --fm:       'JetBrains Mono', monospace;
+  --fb:       'Outfit', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--fb);min-height:100vh;overflow-x:hidden}
+
+/* NOISE OVERLAY */
+body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:9999;opacity:.5}
+
+/* GRID */
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(56,189,248,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.025) 1px,transparent 1px);background-size:44px 44px;pointer-events:none;z-index:0}
+
+.app{position:relative;z-index:1;display:flex;height:100vh;overflow:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{width:240px;flex-shrink:0;background:var(--s1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;transition:width .3s}
+.sidebar-logo{padding:24px 20px 20px;border-bottom:1px solid var(--border)}
+.sidebar-logo h1{font-family:var(--fh);font-size:20px;font-weight:800;background:linear-gradient(90deg,var(--c1),var(--c2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.3px}
+.sidebar-logo p{font-family:var(--fm);font-size:9px;color:var(--muted);letter-spacing:2px;margin-top:4px;text-transform:uppercase}
+
+.nav-section{padding:16px 12px 4px;font-family:var(--fm);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;transition:all .15s;color:var(--muted2);font-size:13px;font-weight:500;margin:1px 4px;border:1px solid transparent}
+.nav-item:hover{background:var(--s2);color:var(--text)}
+.nav-item.active{background:linear-gradient(135deg,rgba(56,189,248,.12),rgba(129,140,248,.12));color:var(--c1);border-color:rgba(56,189,248,.15)}
+.nav-icon{font-size:16px;width:20px;text-align:center}
+.nav-badge{margin-left:auto;background:var(--s3);color:var(--muted2);font-family:var(--fm);font-size:9px;padding:2px 7px;border-radius:10px}
+
+.sidebar-footer{margin-top:auto;padding:16px 12px;border-top:1px solid var(--border)}
+.live-pill{display:flex;align-items:center;gap:7px;font-family:var(--fm);font-size:9px;color:var(--c3);letter-spacing:1px}
+.pulse{width:7px;height:7px;background:var(--c3);border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.4)}50%{opacity:.6;box-shadow:0 0 0 6px rgba(52,211,153,0)}}
+
+/* ── MAIN ── */
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.topbar{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(13,17,32,.8);backdrop-filter:blur(10px);position:sticky;top:0;z-index:100}
+.topbar-title{font-family:var(--fh);font-size:18px;font-weight:700;letter-spacing:-.3px}
+.topbar-meta{font-family:var(--fm);font-size:10px;color:var(--muted);letter-spacing:1px}
+
+.content{flex:1;padding:24px 28px 48px}
+
+/* ── PAGE ── */
+.page{display:none;animation:fadeUp .25s ease}
+.page.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── KPI GRID ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden;transition:transform .2s,border-color .2s;cursor:default}
+.kpi:hover{transform:translateY(-2px);border-color:var(--c1)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--kpi-color,linear-gradient(90deg,var(--c1),var(--c2)))}
+.kpi-label{font-family:var(--fm);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.kpi-val{font-family:var(--fh);font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1}
+.kpi-sub{font-family:var(--fm);font-size:9px;color:var(--muted);margin-top:5px}
+.kpi-icon{position:absolute;top:14px;right:14px;font-size:20px;opacity:.35}
+
+/* ── CARD ── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px}
+.card-head{margin-bottom:18px}
+.card-title{font-family:var(--fh);font-size:14px;font-weight:700;letter-spacing:-.2px}
+.card-sub{font-family:var(--fm);font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+
+/* ── SEARCH BAR ── */
+.search-zone{background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px}
+.search-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:160px}
+.field label{font-family:var(--fm);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.field input,.field select{background:var(--s3);border:1px solid var(--border);color:var(--text);padding:9px 13px;border-radius:8px;font-family:var(--fm);font-size:12px;outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus{border-color:var(--c1)}
+.field input::placeholder{color:var(--muted)}
+
+/* AUTOCOMPLETE */
+.ac-wrap{position:relative;flex:2;min-width:220px}
+.ac-results{position:absolute;top:100%;left:0;right:0;background:var(--s2);border:1px solid var(--border);border-radius:8px;max-height:260px;overflow-y:auto;z-index:200;display:none;scrollbar-width:thin;scrollbar-color:var(--border) transparent;margin-top:4px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.ac-results.open{display:block}
+.ac-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid rgba(28,45,71,.4);transition:background .1s}
+.ac-item:last-child{border-bottom:none}
+.ac-item:hover,.ac-item.selected{background:var(--s3)}
+.ac-name{font-size:12px;color:var(--text)}
+.ac-meta{font-family:var(--fm);font-size:9px;color:var(--muted);margin-top:2px}
+
+.btn{padding:9px 20px;border-radius:8px;border:none;cursor:pointer;font-family:var(--fh);font-size:13px;font-weight:600;transition:all .15s;display:inline-flex;align-items:center;gap:7px}
+.btn-primary{background:linear-gradient(135deg,var(--c1),var(--c2));color:#07090f}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-secondary{background:var(--s3);border:1px solid var(--border);color:var(--text)}
+.btn-secondary:hover{border-color:var(--c1);color:var(--c1)}
+.btn-sm{padding:6px 14px;font-size:11px}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* ── COMPARE CHIPS ── */
+.compare-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;min-height:32px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);border-radius:20px;font-family:var(--fm);font-size:10px;color:var(--c1)}
+.chip-x{cursor:pointer;opacity:.6;font-size:12px;line-height:1}
+.chip-x:hover{opacity:1;color:var(--red)}
+
+/* ── CHART ── */
+.chart-wrap{position:relative;width:100%}
+.chart-wrap canvas{width:100%!important}
+
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:9px 13px;font-family:var(--fm);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:10px 13px;border-bottom:1px solid rgba(28,45,71,.4);transition:background .1s}
+tr:hover td{background:var(--s2)}
+tr:last-child td{border-bottom:none}
+.mono{font-family:var(--fm)}
+.pill{display:inline-block;padding:2px 9px;border-radius:12px;font-family:var(--fm);font-size:9px;font-weight:600;letter-spacing:.5px}
+.pill-sky{background:rgba(56,189,248,.12);color:var(--c1);border:1px solid rgba(56,189,248,.2)}
+.pill-red{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.2)}
+.pill-green{background:rgba(52,211,153,.1);color:var(--c3);border:1px solid rgba(52,211,153,.2)}
+.pill-yellow{background:rgba(251,191,36,.1);color:var(--yellow);border:1px solid rgba(251,191,36,.2)}
+.pill-indigo{background:rgba(129,140,248,.12);color:var(--c2);border:1px solid rgba(129,140,248,.2)}
+
+/* ── TREND BADGE ── */
+.trend-badge{padding:5px 13px;border-radius:20px;font-family:var(--fm);font-size:10px;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.t-up{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.25)}
+.t-down{background:rgba(52,211,153,.1);color:var(--c3);border:1px solid rgba(52,211,153,.2)}
+.t-flat{background:rgba(56,189,248,.1);color:var(--c1);border:1px solid rgba(56,189,248,.2)}
+
+/* ── STAT ROWS ── */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--s2);border-radius:7px;font-size:12px}
+.stat-label{color:var(--muted2)}
+.stat-val{font-family:var(--fm);color:var(--c1);font-weight:600}
+
+/* ── BAR RANK ── */
+.bar-list{display:flex;flex-direction:column;gap:9px}
+.bar-item .brow{display:flex;justify-content:space-between;margin-bottom:3px;font-size:11px}
+.bar-item .bname{color:var(--text);max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-item .bval{font-family:var(--fm);color:var(--muted2)}
+.bar-track{height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+
+/* ── LOADER ── */
+.loader{text-align:center;padding:48px;color:var(--muted);font-family:var(--fm);font-size:12px}
+.spinner{display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--c1);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:48px;color:var(--muted)}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty-text{font-size:13px}
+
+/* ── SCROLLABLE ── */
+.scroll-box{max-height:420px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── SIDEBAR ─────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h1>💊 Rx Analytics</h1>
+    <p>Pharmacy Intelligence</p>
+  </div>
+
+  <div class="nav-section">Main</div>
+  <div class="nav-item active" onclick="nav('overview')">
+    <span class="nav-icon">📊</span> Overview
+  </div>
+  <div class="nav-item" onclick="nav('search')">
+    <span class="nav-icon">🔍</span> Product Search
+  </div>
+  <div class="nav-item" onclick="nav('forecast')">
+    <span class="nav-icon">🔮</span> Forecast
+  </div>
+  <div class="nav-item" onclick="nav('compare')">
+    <span class="nav-icon">⚖️</span> Compare
+  </div>
+
+  <div class="nav-section">Analytics</div>
+  <div class="nav-item" onclick="nav('revenue')">
+    <span class="nav-icon">💰</span> Revenue
+  </div>
+  <div class="nav-item" onclick="nav('patterns')">
+    <span class="nav-icon">⏰</span> Patterns
+  </div>
+  <div class="nav-item" onclick="nav('returns')">
+    <span class="nav-icon">🔄</span> Returns
+  </div>
+  <div class="nav-item" onclick="nav('expiry')">
+    <span class="nav-icon">⚠️</span> Expiry Risk
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="live-pill"><span class="pulse"></span> LIVE · LOCAL API</div>
+  </div>
+</aside>
+
+<!-- ── MAIN ─────────────────────────────────────────────────────────── -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="pageTitle">Overview</div>
+    <div class="topbar-meta" id="pageMeta">Feb 2025 — Jan 2026</div>
+  </div>
+
+  <div class="content">
+
+    <!-- ════ OVERVIEW ════ -->
+    <div class="page active" id="page-overview">
+      <div class="kpi-row" id="kpiRow">
+        <div class="loader"><div class="spinner"></div><br>Loading...</div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Monthly Revenue</div><div class="card-sub">EGP per month</div></div>
+          <div class="chart-wrap"><canvas id="ovMonthly" height="200"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Top Products by Revenue</div><div class="card-sub">Highest earning SKUs</div></div>
+          <div id="ovTopRev" class="bar-list"></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Top Products by Volume</div><div class="card-sub">Most units sold</div></div>
+          <div id="ovTopVol" class="bar-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Staff Performance</div><div class="card-sub">Transaction & revenue split</div></div>
+          <div id="ovStaff"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ PRODUCT SEARCH ════ -->
+    <div class="page" id="page-search">
+      <div class="search-zone">
+        <div class="search-row">
+          <div class="field ac-wrap" style="flex:3">
+            <label>Product Name</label>
+            <input type="text" id="searchInput" placeholder="Type to search... e.g. BRUFEN, سرنجة" oninput="onSearchInput()" onkeydown="onSearchKey(event)" autocomplete="off">
+            <div class="ac-results" id="searchAC"></div>
+          </div>
+          <div class="field">
+            <label>Date From</label>
+            <input type="date" id="searchFrom" value="2025-02-07">
+          </div>
+          <div class="field">
+            <label>Date To</label>
+            <input type="date" id="searchTo" value="2026-01-11">
+          </div>
+          <button class="btn btn-primary" onclick="doSearch()">🔍 Search</button>
+        </div>
+      </div>
+      <div id="searchResults">
+        <div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Search for a product above to see full analytics</div></div>
+      </div>
+    </div>
+
+    <!-- ════ FORECAST ════ -->
+    <div class="page" id="page-forecast">
+      <div class="search-zone">
+        <div class="search-row">
+          <div class="field ac-wrap" style="flex:3">
+            <label>Product</label>
+            <input type="text" id="fcInput" placeholder="Type product name..." oninput="onFcInput()" onkeydown="onFcKey(event)" autocomplete="off">
+            <div class="ac-results" id="fcAC"></div>
+          </div>
+          <div class="field">
+            <label>Date From</label>
+            <input type="date" id="fcFrom" value="2025-02-07">
+          </div>
+          <div class="field">
+            <label>Date To</label>
+            <input type="date" id="fcTo" value="2026-01-11">
+          </div>
+          <div class="field" style="min-width:100px">
+            <label>Frequency</label>
+            <select id="fcFreq">
+              <option value="W" selected>Weekly</option>
+              <option value="D">Daily</option>
+              <option value="M">Monthly</option>
+            </select>
+          </div>
+          <div class="field" style="min-width:100px">
+            <label>Periods Ahead</label>
+            <input type="number" id="fcAhead" value="12" min="1" max="52">
+          </div>
+          <button class="btn btn-primary" onclick="doForecast()">🔮 Forecast</button>
+        </div>
+      </div>
+      <div id="forecastResults">
+        <div class="empty"><div class="empty-icon">🔮</div><div class="empty-text">Select a product to generate a forecast</div></div>
+      </div>
+    </div>
+
+    <!-- ════ COMPARE ════ -->
+    <div class="page" id="page-compare">
+      <div class="search-zone">
+        <div class="search-row">
+          <div class="field ac-wrap" style="flex:3">
+            <label>Add Product (up to 6)</label>
+            <input type="text" id="cmpInput" placeholder="Type to add product..." oninput="onCmpInput()" onkeydown="onCmpKey(event)" autocomplete="off">
+            <div class="ac-results" id="cmpAC"></div>
+          </div>
+          <div class="field">
+            <label>Date From</label>
+            <input type="date" id="cmpFrom" value="2025-02-07">
+          </div>
+          <div class="field">
+            <label>Date To</label>
+            <input type="date" id="cmpTo" value="2026-01-11">
+          </div>
+          <div class="field" style="min-width:100px">
+            <label>Frequency</label>
+            <select id="cmpFreq">
+              <option value="W" selected>Weekly</option>
+              <option value="M">Monthly</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="doCompare()">⚖️ Compare</button>
+        </div>
+        <div class="compare-chips" id="cmpChips"></div>
+      </div>
+      <div id="compareResults">
+        <div class="empty"><div class="empty-icon">⚖️</div><div class="empty-text">Add 2–6 products to compare them side by side</div></div>
+      </div>
+    </div>
+
+    <!-- ════ REVENUE ════ -->
+    <div class="page" id="page-revenue">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Weekly Revenue Timeline</div><div class="card-sub">Full year — EGP per week</div></div>
+        <div class="chart-wrap"><canvas id="revWeekly" height="220"></canvas></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Top 15 by Revenue</div><div class="card-sub">Cumulative EGP</div></div>
+          <div class="scroll-box tbl-wrap">
+            <table><thead><tr><th>#</th><th>Product</th><th>Revenue</th><th>Units</th></tr></thead>
+            <tbody id="revTable"></tbody></table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Revenue vs Volume</div><div class="card-sub">Scatter — top products</div></div>
+          <div class="chart-wrap"><canvas id="revScatter" height="300"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ PATTERNS ════ -->
+    <div class="page" id="page-patterns">
+      <div class="grid2">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Sales by Hour</div><div class="card-sub">Transaction count per hour of day</div></div>
+          <div class="chart-wrap"><canvas id="patHour" height="240"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Sales by Day of Week</div><div class="card-sub">Average transaction volume</div></div>
+          <div class="chart-wrap"><canvas id="patDow" height="240"></canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Monthly Seasonality</div><div class="card-sub">Revenue by month — spot seasonal trends</div></div>
+        <div class="chart-wrap"><canvas id="patMonth" height="180"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ════ RETURNS ════ -->
+    <div class="page" id="page-returns">
+      <div class="kpi-row" id="retKpiRow"></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Most Returned Products</div><div class="card-sub">By return transaction count</div></div>
+          <div class="scroll-box tbl-wrap">
+            <table><thead><tr><th>#</th><th>Product</th><th>Returns</th><th>Units</th><th>Rev Lost</th></tr></thead>
+            <tbody id="retTable"></tbody></table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Return Volume Ranking</div></div>
+          <div class="chart-wrap"><canvas id="retChart" height="320"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ EXPIRY ════ -->
+    <div class="page" id="page-expiry">
+      <div class="card">
+        <div class="card-head"><div class="card-title">⚠️ Expiry Risk Register</div><div class="card-sub">As of January 2026 — sorted by urgency</div></div>
+        <div class="scroll-box tbl-wrap">
+          <table><thead><tr><th>#</th><th>Product</th><th>Months Left</th><th>Units Sold</th><th>Revenue</th><th>Status</th></tr></thead>
+          <tbody id="expTable"></tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Expiry Timeline Chart</div><div class="card-sub">Months remaining per product</div></div>
+        <div class="chart-wrap"><canvas id="expChart" height="280"></canvas></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── UTILS ────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmt = n => n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString();
+const short = (s,n=30) => s.length>n?s.slice(0,n)+'…':s;
+
+Chart.defaults.color = '#475569';
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 10;
+
+const GR = {color:'rgba(28,45,71,.5)',lineWidth:.5};
+const TK = {color:'#475569'};
+const PALETTE = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6','#fbbf24','#a78bfa','#22d3ee'];
+
+function makeGrad(ctx,h,r,g,b,a1=.4,a2=.01){
+  const gr=ctx.createLinearGradient(0,0,0,h);
+  gr.addColorStop(0,`rgba(${r},${g},${b},${a1})`);
+  gr.addColorStop(1,`rgba(${r},${g},${b},${a2})`);
+  return gr;
+}
+
+const chartRegistry = {};
+function safeChart(id, config){
+  if(chartRegistry[id]){ chartRegistry[id].destroy(); }
+  chartRegistry[id] = new Chart($(id), config);
+  return chartRegistry[id];
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────────────────────
+const pageTitles = {
+  overview:'Overview', search:'Product Search', forecast:'Demand Forecast',
+  compare:'Compare Products', revenue:'Revenue Analysis',
+  patterns:'Time Patterns', returns:'Returns Analysis', expiry:'Expiry Risk'
+};
+const pageMetas = {
+  overview:'All-time KPIs', search:'Search any product with date filters',
+  forecast:'Holt\'s Exponential Smoothing', compare:'Side-by-side comparison',
+  revenue:'Financial breakdown', patterns:'Behavioral analytics',
+  returns:'Return rate analysis', expiry:'Stock expiry register'
+};
+const loaded = {};
+
+function nav(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  $('page-'+name).classList.add('active');
+  document.querySelector(`.nav-item[onclick="nav('${name}')"]`).classList.add('active');
+  $('pageTitle').textContent = pageTitles[name]||name;
+  $('pageMeta').textContent  = pageMetas[name]||'';
+  if(!loaded[name]){ loaded[name]=true; lazyLoad(name); }
+}
+
+async function lazyLoad(name){
+  if(name==='overview') await loadOverview();
+  if(name==='revenue')  await loadRevenue();
+  if(name==='patterns') await loadPatterns();
+  if(name==='returns')  await loadReturns();
+  if(name==='expiry')   await loadExpiry();
+}
+
+async function api(url){ const r=await fetch(url); return r.json(); }
+
+// ══════════════════════════════════════════════════════════════════════════
+// OVERVIEW
+// ══════════════════════════════════════════════════════════════════════════
+async function loadOverview(){
+  const [sum, top, trends] = await Promise.all([
+    api('/api/summary'), api('/api/top?by=revenue&limit=10'), api('/api/trends')
+  ]);
+
+  // KPIs
+  const kpis = [
+    {label:'Total Revenue',    val:'EGP '+fmt(sum.total_revenue),   sub:'Feb 2025 – Jan 2026', icon:'💸', color:'linear-gradient(90deg,#38bdf8,#818cf8)'},
+    {label:'Transactions',     val:sum.total_transactions.toLocaleString(), sub:'~'+Math.round(sum.total_transactions/365)+' per day', icon:'🧾', color:'linear-gradient(90deg,#34d399,#38bdf8)'},
+    {label:'Units Sold',       val:sum.total_units.toLocaleString(),sub:sum.unique_products.toLocaleString()+' unique SKUs', icon:'📦', color:'linear-gradient(90deg,#818cf8,#f472b6)'},
+    {label:'Avg Daily Revenue',val:'EGP '+fmt(sum.avg_daily_revenue),sub:'Per operating day', icon:'📅', color:'linear-gradient(90deg,#fb923c,#fbbf24)'},
+    {label:'Return Rate',      val:sum.return_rate+'%',             sub:sum.total_returns.toLocaleString()+' return txns', icon:'↩️', color:'linear-gradient(90deg,#f87171,#fb923c)'},
+    {label:'Unique Products',  val:sum.unique_products.toLocaleString(),sub:'Active catalog SKUs', icon:'🏪', color:'linear-gradient(90deg,#a78bfa,#818cf8)'},
+  ];
+  $('kpiRow').innerHTML = kpis.map(k=>`
+    <div class="kpi" style="--kpi-color:${k.color}">
+      <div class="kpi-icon">${k.icon}</div>
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-val" style="color:#38bdf8">${k.val}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+
+  // Monthly chart
+  const mCtx = $('ovMonthly').getContext('2d');
+  const bg = makeGrad(mCtx,240,56,189,248);
+  safeChart('ovMonthly',{
+    type:'bar',
+    data:{labels:trends.monthly.map(d=>d.month), datasets:[{
+      label:'Revenue', data:trends.monthly.map(d=>d.revenue),
+      backgroundColor:trends.monthly.map((d,i)=>i===trends.monthly.reduce((mi,v,idx)=>v.revenue>trends.monthly[mi].revenue?idx:mi,0)?'rgba(56,189,248,.9)':'rgba(56,189,248,.3)'),
+      borderRadius:4
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'EGP '+fmt(c.raw)}}},
+      scales:{x:{grid:GR,ticks:TK},y:{grid:GR,ticks:{...TK,callback:v=>'EGP '+fmt(v)}}}}
+  });
+
+  // Top rev bars
+  const maxR = Math.max(...top.products.map(p=>p.revenue));
+  $('ovTopRev').innerHTML = top.products.slice(0,10).map((p,i)=>`
+    <div class="bar-item">
+      <div class="brow"><span class="bname">${short(p.name,32)}</span><span class="bval">EGP ${fmt(p.revenue)}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(p.revenue/maxR*100).toFixed(1)}%;background:${PALETTE[i%8]}"></div></div>
+    </div>`).join('');
+
+  // Top vol bars
+  const topV = await api('/api/top?by=units&limit=10');
+  const maxV = Math.max(...topV.products.map(p=>p.units));
+  $('ovTopVol').innerHTML = topV.products.map((p,i)=>`
+    <div class="bar-item">
+      <div class="brow"><span class="bname">${short(p.name,32)}</span><span class="bval">${fmt(p.units)} units</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(p.units/maxV*100).toFixed(1)}%;background:${PALETTE[i%8]}"></div></div>
+    </div>`).join('');
+
+  // Staff
+  $('ovStaff').innerHTML = `<div class="stat-grid">${sum.staff.map(s=>`
+    <div style="background:var(--s2);border-radius:10px;padding:16px;border:1px solid var(--border)">
+      <div style="font-family:var(--fh);font-size:15px;font-weight:700;color:var(--c1);margin-bottom:10px">${s.name}</div>
+      ${[['Transactions',s.txns.toLocaleString()],['Revenue','EGP '+fmt(s.revenue)],['Units',s.units.toLocaleString()],['Avg/Txn','EGP '+(s.revenue/s.txns).toFixed(1)]].map(([l,v])=>`
+      <div class="stat-row"><span class="stat-label">${l}</span><span class="stat-val">${v}</span></div>`).join('')}
+    </div>`).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// AUTOCOMPLETE HELPER
+// ══════════════════════════════════════════════════════════════════════════
+let acTimer=null, acSelectedIdx=-1;
+
+function buildAC(inputId, resultsId, onSelect){
+  const inp=$( inputId), res=$(resultsId);
+  let items=[];
+
+  inp.addEventListener('input',async()=>{
+    clearTimeout(acTimer);
+    const q=inp.value.trim();
+    if(q.length<1){res.classList.remove('open');return;}
+    acTimer=setTimeout(async()=>{
+      const d=await api('/api/search?q='+encodeURIComponent(q));
+      items=d.results||[];
+      acSelectedIdx=-1;
+      res.innerHTML=items.slice(0,20).map((p,i)=>`
+        <div class="ac-item" data-idx="${i}" onmousedown="event.preventDefault()" onclick="acPick_${resultsId}(${i})">
+          <div class="ac-name">${p.name}</div>
+          <div class="ac-meta">${p.units.toLocaleString()} units · EGP ${fmt(p.revenue)} · ${p.txns} txns</div>
+        </div>`).join('');
+      window[`acPick_${resultsId}`]=(i)=>{
+        inp.value=items[i].name;
+        res.classList.remove('open');
+        onSelect(items[i].name);
+      };
+      res.classList.toggle('open',items.length>0);
+    },200);
+  });
+
+  inp.addEventListener('keydown',e=>{
+    const its=res.querySelectorAll('.ac-item');
+    if(e.key==='ArrowDown'){e.preventDefault();acSelectedIdx=Math.min(acSelectedIdx+1,its.length-1);its.forEach((el,i)=>el.classList.toggle('selected',i===acSelectedIdx));}
+    else if(e.key==='ArrowUp'){e.preventDefault();acSelectedIdx=Math.max(acSelectedIdx-1,0);its.forEach((el,i)=>el.classList.toggle('selected',i===acSelectedIdx));}
+    else if(e.key==='Enter'&&acSelectedIdx>=0){its[acSelectedIdx]?.click();}
+    else if(e.key==='Escape'){res.classList.remove('open');}
+  });
+
+  document.addEventListener('click',e=>{if(!inp.contains(e.target)&&!res.contains(e.target))res.classList.remove('open');});
+}
+
+// init autocompletes
+buildAC('searchInput','searchAC', name=>{ $('searchInput').value=name; });
+buildAC('fcInput','fcAC', name=>{ $('fcInput').value=name; });
+buildAC('cmpInput','cmpAC', name=>{ addCmpProduct(name); $('cmpInput').value=''; });
+
+function onSearchInput(){} function onSearchKey(e){if(e.key==='Enter')doSearch();}
+function onFcInput(){} function onFcKey(e){if(e.key==='Enter')doForecast();}
+function onCmpInput(){} function onCmpKey(e){}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SEARCH PAGE
+// ══════════════════════════════════════════════════════════════════════════
+async function doSearch(){
+  const name=$('searchInput').value.trim();
+  const from=$('searchFrom').value;
+  const to  =$('searchTo').value;
+  if(!name){alert('Please enter a product name');return;}
+
+  $('searchResults').innerHTML='<div class="loader"><div class="spinner"></div><br>Loading product data...</div>';
+
+  const params=new URLSearchParams({product:name,date_from:from,date_to:to,freq:'W',n_ahead:12});
+  const [prof, fc] = await Promise.all([
+    api('/api/product/'+encodeURIComponent(name)),
+    api('/api/forecast?'+params)
+  ]);
+
+  if(prof.error){$('searchResults').innerHTML=`<div class="empty"><div class="empty-icon">❌</div><div class="empty-text">${prof.error}</div></div>`;return;}
+
+  const trendPct=fc?fc.trend_pct:0;
+  const tClass=trendPct>15?'t-up':trendPct<-15?'t-down':'t-flat';
+  const tLabel=trendPct>15?`↑ Rising +${trendPct}%`:trendPct<-15?`↓ Declining ${trendPct}%`:`→ Stable ${trendPct>0?'+':''}${trendPct}%`;
+
+  $('searchResults').innerHTML=`
+    <div class="card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+        <div>
+          <div style="font-family:var(--fh);font-size:18px;font-weight:800;margin-bottom:4px">${prof.name}</div>
+          <div style="font-family:var(--fm);font-size:10px;color:var(--muted)">${from} → ${to}</div>
+        </div>
+        ${fc?`<span class="trend-badge ${tClass}">${tLabel}</span>`:''}
+      </div>
+      <div class="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+        ${[
+          ['Units Sold',prof.total_units.toLocaleString(),'--kpi-color:linear-gradient(90deg,#38bdf8,#818cf8)','#38bdf8'],
+          ['Revenue','EGP '+fmt(prof.total_revenue),'--kpi-color:linear-gradient(90deg,#34d399,#38bdf8)','#34d399'],
+          ['Transactions',prof.n_transactions,'--kpi-color:linear-gradient(90deg,#fb923c,#fbbf24)','#fbbf24'],
+          ['Avg Price','EGP '+prof.avg_price,'--kpi-color:linear-gradient(90deg,#818cf8,#f472b6)','#818cf8'],
+          ['Return Rate',prof.return_rate+'%','--kpi-color:linear-gradient(90deg,#f87171,#fb923c)','#f87171'],
+          ['Peak Period',prof.peak_period||'—','--kpi-color:linear-gradient(90deg,#a78bfa,#818cf8)','#a78bfa'],
+        ].map(([l,v,c,vc])=>`<div class="kpi" style="${c}"><div class="kpi-label">${l}</div><div class="kpi-val" style="font-size:20px;color:${vc}">${v}</div></div>`).join('')}
+      </div>
+    </div>
+    ${fc?`
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Demand Forecast — ${fc.freq==='W'?'Weekly':fc.freq==='D'?'Daily':'Monthly'}</div>
+        <div class="card-sub">${fc.date_from} → forecast through ${fc.fc_dates[fc.fc_dates.length-1]} · alpha=${fc.alpha} β=${fc.beta}</div>
+      </div>
+      <div class="chart-wrap"><canvas id="srFcChart" height="260"></canvas></div>
+      <div class="stat-grid" style="margin-top:14px">
+        ${[['Hist Avg/Period',fc.hist_avg+' units'],['Fcst Avg/Period',fc.fc_avg+' units'],['Total Forecast',fc.total_12wk+' units'],['Trend',tLabel]].map(([l,v])=>`
+        <div class="stat-row"><span class="stat-label">${l}</span><span class="stat-val">${v}</span></div>`).join('')}
+      </div>
+    </div>`:''}
+    <div class="grid2">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Monthly Breakdown</div></div>
+        <div class="chart-wrap"><canvas id="srMonthly" height="200"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Day of Week Pattern</div></div>
+        <div class="chart-wrap"><canvas id="srDow" height="200"></canvas></div>
+      </div>
+    </div>`;
+
+  // Draw charts
+  if(fc){
+    const ctx=$('srFcChart').getContext('2d');
+    const bgBlue=makeGrad(ctx,300,56,189,248,.3);
+    const bgOrange=makeGrad(ctx,300,251,146,60,.35);
+    const allLabels=[...fc.hist_dates,...fc.fc_dates];
+    const histFull=[...fc.hist_units,...Array(fc.fc_dates.length).fill(null)];
+    const fcFull=[...Array(fc.hist_dates.length-1).fill(null),fc.hist_units[fc.hist_units.length-1],...fc.fc_units];
+    const loFull=[...Array(fc.hist_dates.length-1).fill(null),fc.hist_units[fc.hist_units.length-1],...fc.fc_lower];
+    const hiFull=[...Array(fc.hist_dates.length-1).fill(null),fc.hist_units[fc.hist_units.length-1],...fc.fc_upper];
+
+    safeChart('srFcChart',{
+      type:'line',
+      data:{labels:allLabels,datasets:[
+        {label:'Historical',data:histFull,borderColor:'rgba(56,189,248,.85)',borderWidth:2,backgroundColor:bgBlue,fill:true,tension:.35,pointRadius:0,pointHoverRadius:4},
+        {label:'Forecast',data:fcFull,borderColor:'rgba(251,146,60,.9)',borderWidth:2.5,borderDash:[6,4],backgroundColor:bgOrange,fill:true,tension:.35,pointRadius:allLabels.map((_,i)=>i>=fc.hist_dates.length?3:0),pointBackgroundColor:'#fb923c'},
+        {label:'Upper',data:hiFull,borderColor:'transparent',backgroundColor:'rgba(251,146,60,.06)',fill:'+1',tension:.35,pointRadius:0},
+        {label:'Lower',data:loFull,borderColor:'transparent',backgroundColor:'rgba(251,146,60,.06)',fill:false,tension:.35,pointRadius:0},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{filter:l=>!['Upper','Lower'].includes(l.text),color:'#64748b',boxWidth:14,padding:16}},tooltip:{backgroundColor:'rgba(13,17,32,.95)',borderColor:'rgba(56,189,248,.2)',borderWidth:1,filter:i=>i.dataset.label!=='Upper'&&i.dataset.label!=='Lower'}},
+        scales:{x:{grid:GR,ticks:{...TK,maxTicksLimit:14,maxRotation:30}},y:{grid:GR,ticks:{...TK,callback:v=>v+' u'}}}}
+    });
+  }
+
+  // Monthly
+  const mCtx2=$('srMonthly').getContext('2d');
+  safeChart('srMonthly',{
+    type:'bar',
+    data:{labels:prof.monthly.map(d=>d.month),datasets:[{label:'Units',data:prof.monthly.map(d=>d.units),backgroundColor:'rgba(129,140,248,.55)',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:GR,ticks:TK},y:{grid:GR,ticks:TK}}}
+  });
+
+  // DOW
+  safeChart('srDow',{
+    type:'bar',
+    data:{labels:prof.dow.map(d=>d.dow?d.dow.slice(0,3):''),datasets:[{label:'Txns',data:prof.dow.map(d=>d.txns||0),backgroundColor:'rgba(52,211,153,.5)',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:GR,ticks:TK},y:{grid:GR,ticks:TK}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// FORECAST PAGE
+// ══════════════════════════════════════════════════════════════════════════
+async function doForecast(){
+  const name=$('fcInput').value.trim();
+  const from=$('fcFrom').value, to=$('fcTo').value;
+  const freq=$('fcFreq').value, ahead=parseInt($('fcAhead').value)||12;
+  if(!name){alert('Please enter a product name');return;}
+
+  $('forecastResults').innerHTML='<div class="loader"><div class="spinner"></div><br>Running forecast model...</div>';
+  const params=new URLSearchParams({product:name,date_from:from,date_to:to,freq,n_ahead:ahead});
+  const fc=await api('/api/forecast?'+params);
+
+  if(fc.error){$('forecastResults').innerHTML=`<div class="empty"><div class="empty-icon">❌</div><div class="empty-text">${fc.error}</div></div>`;return;}
+
+  const tp=fc.trend_pct;
+  const tClass=tp>15?'t-up':tp<-15?'t-down':'t-flat';
+  const tLabel=tp>15?`↑ Rising +${tp}%`:tp<-15?`↓ Declining ${tp}%`:`→ Stable ${tp>0?'+':''}${tp}%`;
+
+  $('forecastResults').innerHTML=`
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <div>
+          <div style="font-family:var(--fh);font-size:16px;font-weight:800">${short(fc.product,50)}</div>
+          <div style="font-family:var(--fm);font-size:9px;color:var(--muted);margin-top:3px">Training: ${fc.date_from} → ${fc.date_to} · α=${fc.alpha} β=${fc.beta} · ${freq==='W'?'Weekly':freq==='D'?'Daily':'Monthly'}</div>
+        </div>
+        <span class="trend-badge ${tClass}">${tLabel}</span>
+      </div>
+      <div class="chart-wrap"><canvas id="fcMainChart" height="300"></canvas></div>
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-top:14px">
+        ${[
+          ['Hist Avg/Period',fc.hist_avg+' u','#38bdf8'],
+          ['Fcst Avg/Period',fc.fc_avg+' u','#fb923c'],
+          ['Total Forecast',fc.total_12wk+' u','#34d399'],
+          ['Peak Historic',fc.peak_units+' u','#818cf8'],
+        ].map(([l,v,c])=>`<div class="kpi" style="padding:12px 16px"><div class="kpi-label">${l}</div><div class="kpi-val" style="font-size:22px;color:${c}">${v}</div></div>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Forecast Table — Next ${ahead} Periods</div></div>
+      <div class="tbl-wrap scroll-box">
+        <table><thead><tr><th>Period</th><th>Forecasted Units</th><th>Lower Bound</th><th>Upper Bound</th><th>vs Hist Avg</th></tr></thead>
+        <tbody>${fc.fc_dates.map((d,i)=>{
+          const diff=((fc.fc_units[i]-fc.hist_avg)/fc.hist_avg*100).toFixed(1);
+          const dc=diff>10?'var(--red)':diff<-10?'var(--c3)':'var(--muted2)';
+          return `<tr><td class="mono">${d}</td><td class="mono" style="color:var(--c1);font-weight:600">${fc.fc_units[i]}</td><td class="mono" style="color:var(--muted2)">${fc.fc_lower[i]}</td><td class="mono" style="color:var(--muted2)">${fc.fc_upper[i]}</td><td class="mono" style="color:${dc}">${diff>0?'+':''}${diff}%</td></tr>`;
+        }).join('')}</tbody></table>
+      </div>
+    </div>`;
+
+  const ctx=$('fcMainChart').getContext('2d');
+  const bgB=makeGrad(ctx,360,56,189,248,.28);
+  const bgO=makeGrad(ctx,360,251,146,60,.32);
+  const allL=[...fc.hist_dates,...fc.fc_dates];
+  const hF=[...fc.hist_units,...Array(fc.fc_dates.length).fill(null)];
+  const fF=[...Array(fc.hist_dates.length-1).fill(null),fc.hist_units[fc.hist_units.length-1],...fc.fc_units];
+  const loF=[...Array(fc.hist_dates.length-1).fill(null),fc.hist_units[fc.hist_units.length-1],...fc.fc_lower];
+  const hiF=[...Array(fc.hist_dates.length-1).fill(null),fc.hist_units[fc.hist_units.length-1],...fc.fc_upper];
+
+  safeChart('fcMainChart',{
+    type:'line',
+    data:{labels:allL,datasets:[
+      {label:'Historical',data:hF,borderColor:'rgba(56,189,248,.85)',borderWidth:2,backgroundColor:bgB,fill:true,tension:.4,pointRadius:0,pointHoverRadius:5},
+      {label:'Forecast',data:fF,borderColor:'rgba(251,146,60,.9)',borderWidth:2.5,borderDash:[7,4],backgroundColor:bgO,fill:true,tension:.4,pointRadius:allL.map((_,i)=>i>=fc.hist_dates.length?4:0),pointBackgroundColor:'#fb923c'},
+      {label:'Upper',data:hiF,borderColor:'rgba(251,146,60,.15)',fill:false,tension:.4,pointRadius:0},
+      {label:'Lower',data:loF,borderColor:'rgba(251,146,60,.15)',fill:'-1',backgroundColor:'rgba(251,146,60,.05)',tension:.4,pointRadius:0},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{filter:l=>!['Upper','Lower'].includes(l.text),color:'#64748b',boxWidth:14,padding:16}},tooltip:{backgroundColor:'rgba(13,17,32,.95)',borderColor:'rgba(56,189,248,.2)',borderWidth:1}},
+      scales:{x:{grid:GR,ticks:{...TK,maxTicksLimit:16,maxRotation:30}},y:{grid:GR,ticks:{...TK,callback:v=>v+' u'}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// COMPARE PAGE
+// ══════════════════════════════════════════════════════════════════════════
+let cmpProducts=[];
+function addCmpProduct(name){
+  if(cmpProducts.includes(name)||cmpProducts.length>=6) return;
+  cmpProducts.push(name);
+  renderCmpChips();
+}
+function removeCmpProduct(i){cmpProducts.splice(i,1);renderCmpChips();}
+function renderCmpChips(){
+  $('cmpChips').innerHTML=cmpProducts.map((p,i)=>`
+    <div class="chip">${short(p,25)}<span class="chip-x" onclick="removeCmpProduct(${i})">✕</span></div>`).join('');
+}
+
+async function doCompare(){
+  if(cmpProducts.length<2){alert('Add at least 2 products');return;}
+  const from=$('cmpFrom').value,to=$('cmpTo').value,freq=$('cmpFreq').value;
+  $('compareResults').innerHTML='<div class="loader"><div class="spinner"></div><br>Comparing products...</div>';
+
+  const params=new URLSearchParams({products:cmpProducts.join(','),date_from:from,date_to:to,freq});
+  const data=await api('/api/compare?'+params);
+  const prods=data.products;
+  if(!prods.length){$('compareResults').innerHTML='<div class="empty"><div class="empty-icon">❌</div><div class="empty-text">No data found</div></div>';return;}
+
+  $('compareResults').innerHTML=`
+    <div class="card">
+      <div class="card-head"><div class="card-title">Sales History Comparison</div><div class="card-sub">${from} → ${to} · ${freq==='W'?'Weekly':'Monthly'}</div></div>
+      <div class="chart-wrap"><canvas id="cmpHistChart" height="280"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">12-Period Forecast Comparison</div></div>
+      <div class="chart-wrap"><canvas id="cmpFcChart" height="280"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Side-by-Side Stats</div></div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Product</th><th>Total Units</th><th>Total Rev</th><th>Hist Avg/Period</th><th>Fcst Avg/Period</th><th>12-Period Total</th><th>Trend</th></tr></thead>
+        <tbody>${prods.map((p,i)=>{
+          const tp=p.trend_pct;
+          const tc=tp>15?'var(--red)':tp<-15?'var(--c3)':'var(--muted2)';
+          return `<tr>
+            <td style="color:${PALETTE[i]};font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${short(p.product,28)}</td>
+            <td class="mono">${p.total_hist_units.toLocaleString()}</td>
+            <td class="mono">EGP ${fmt(p.total_hist_rev)}</td>
+            <td class="mono">${p.hist_avg}</td>
+            <td class="mono" style="color:var(--c1)">${p.fc_avg}</td>
+            <td class="mono" style="font-weight:700">${p.total_12wk}</td>
+            <td class="mono" style="color:${tc}">${tp>0?'+':''}${tp}%</td>
+          </tr>`;
+        }).join('')}</tbody></table>
+      </div>
+    </div>`;
+
+  // History chart
+  safeChart('cmpHistChart',{
+    type:'line',
+    data:{
+      labels:prods.reduce((a,b)=>a.hist_dates.length>b.hist_dates.length?a:b).hist_dates,
+      datasets:prods.map((p,i)=>({
+        label:short(p.product,22),data:p.hist_units,
+        borderColor:PALETTE[i],borderWidth:2,
+        backgroundColor:PALETTE[i]+'22',fill:false,tension:.35,
+        pointRadius:0,pointHoverRadius:4
+      }))
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#64748b',boxWidth:14,padding:16}}},
+      scales:{x:{grid:GR,ticks:{...TK,maxTicksLimit:14,maxRotation:30}},y:{grid:GR,ticks:{...TK,callback:v=>v+' u'}}}}
+  });
+
+  // Forecast chart
+  safeChart('cmpFcChart',{
+    type:'line',
+    data:{
+      labels:prods[0].fc_dates,
+      datasets:prods.map((p,i)=>({
+        label:short(p.product,22),data:p.fc_units,
+        borderColor:PALETTE[i],borderWidth:2.5,borderDash:[6,4],
+        backgroundColor:PALETTE[i]+'11',fill:false,tension:.35,
+        pointRadius:4,pointBackgroundColor:PALETTE[i]
+      }))
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#64748b',boxWidth:14,padding:16}}},
+      scales:{x:{grid:GR,ticks:TK},y:{grid:GR,ticks:{...TK,callback:v=>v+' u'}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// REVENUE
+// ══════════════════════════════════════════════════════════════════════════
+async function loadRevenue(){
+  const [trends,top]=await Promise.all([api('/api/trends'),api('/api/top?by=revenue&limit=15')]);
+
+  const wCtx=$('revWeekly').getContext('2d');
+  const bgW=makeGrad(wCtx,280,129,140,248,.38);
+  safeChart('revWeekly',{
+    type:'line',
+    data:{labels:trends.weekly.map(d=>d.week),datasets:[{label:'Weekly Revenue',data:trends.weekly.map(d=>d.revenue),borderColor:'rgba(129,140,248,.9)',borderWidth:2,backgroundColor:bgW,fill:true,tension:.4,pointRadius:0,pointHoverRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'EGP '+fmt(c.raw)}}},
+      scales:{x:{grid:GR,ticks:{...TK,maxTicksLimit:20,maxRotation:30}},y:{grid:GR,ticks:{...TK,callback:v=>'EGP '+fmt(v)}}}}
+  });
+
+  $('revTable').innerHTML=top.products.map((p,i)=>`<tr><td class="mono" style="color:var(--muted)">${i+1}</td><td>${short(p.name,30)}</td><td class="mono" style="color:var(--c1)">${p.revenue.toLocaleString()}</td><td class="mono" style="color:var(--muted2)">${p.units}</td></tr>`).join('');
+
+  const sCtx=$('revScatter').getContext('2d');
+  safeChart('revScatter',{
+    type:'scatter',
+    data:{datasets:[{label:'Products',data:top.products.map(p=>({x:p.units,y:p.revenue})),backgroundColor:top.products.map((_,i)=>`hsla(${190+i*14},75%,62%,.75)`),pointRadius:10,pointHoverRadius:14}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:(c)=>{const p=top.products[c.dataIndex];return[short(p.name,22),'Units: '+c.parsed.x,'Rev: EGP '+fmt(c.parsed.y)];} }}},
+      scales:{x:{grid:GR,ticks:TK,title:{display:true,text:'Units Sold',color:'#475569'}},y:{grid:GR,ticks:{...TK,callback:v=>'EGP '+fmt(v)},title:{display:true,text:'Revenue (EGP)',color:'#475569'}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PATTERNS
+// ══════════════════════════════════════════════════════════════════════════
+async function loadPatterns(){
+  const d=await api('/api/trends');
+
+  const hData=d.hourly||[];
+  safeChart('patHour',{
+    type:'bar',
+    data:{labels:hData.map(h=>h.hour+':00'),datasets:[{label:'Txns',data:hData.map(h=>h.txns),backgroundColor:hData.map(h=>h.txns===Math.max(...hData.map(x=>x.txns))?'rgba(52,211,153,.9)':'rgba(52,211,153,.3)'),borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:GR,ticks:TK},y:{grid:GR,ticks:TK}}}
+  });
+
+  const dow=d.dow||[];
+  safeChart('patDow',{
+    type:'bar',
+    data:{labels:dow.map(d=>d.day?d.day.slice(0,3):''),datasets:[{label:'Txns',data:dow.map(d=>d.txns||0),backgroundColor:dow.map(d=>(d.txns||0)===Math.max(...dow.map(x=>x.txns||0))?'rgba(251,191,36,.9)':'rgba(251,191,36,.35)'),borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:GR,ticks:TK},y:{grid:GR,ticks:TK}}}
+  });
+
+  const mth=d.monthly||[];
+  safeChart('patMonth',{
+    type:'bar',
+    data:{labels:mth.map(m=>m.month),datasets:[{label:'Revenue',data:mth.map(m=>m.revenue),backgroundColor:mth.map((_,i)=>`hsla(${200+i*13},70%,58%,.65)`),borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'EGP '+fmt(c.raw)}}},scales:{x:{grid:GR,ticks:TK},y:{grid:GR,ticks:{...TK,callback:v=>'EGP '+fmt(v)}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RETURNS
+// ══════════════════════════════════════════════════════════════════════════
+async function loadReturns(){
+  const d=await api('/api/returns');
+  $('retKpiRow').innerHTML=`
+    <div class="kpi" style="--kpi-color:linear-gradient(90deg,#f87171,#fb923c)"><div class="kpi-icon">↩️</div><div class="kpi-label">Return Transactions</div><div class="kpi-val" style="color:var(--red)">${d.total_return_txns.toLocaleString()}</div></div>
+    <div class="kpi" style="--kpi-color:linear-gradient(90deg,#fb923c,#fbbf24)"><div class="kpi-icon">📉</div><div class="kpi-label">Return Rate</div><div class="kpi-val" style="color:var(--c4)">${d.return_rate_pct}%</div></div>
+    <div class="kpi" style="--kpi-color:linear-gradient(90deg,#fbbf24,#f87171)"><div class="kpi-icon">💔</div><div class="kpi-label">Revenue Lost</div><div class="kpi-val" style="color:var(--yellow)">EGP ${fmt(d.total_return_rev)}</div></div>`;
+
+  $('retTable').innerHTML=d.by_product.map((p,i)=>`<tr><td class="mono" style="color:var(--muted)">${i+1}</td><td>${short(p.name,28)}</td><td class="mono" style="color:var(--red)">${p.return_txns}</td><td class="mono" style="color:var(--muted2)">${p.return_units}</td><td class="mono" style="color:var(--c4)">${p.return_rev.toFixed(0)}</td></tr>`).join('');
+
+  const top10=d.by_product.slice(0,10);
+  safeChart('retChart',{
+    type:'bar',
+    data:{labels:top10.map(p=>short(p.name,20)),datasets:[{label:'Returns',data:top10.map(p=>p.return_txns),backgroundColor:top10.map((_,i)=>`hsla(${0+i*9},72%,60%,.72)`),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:GR,ticks:TK},y:{grid:{display:false},ticks:{...TK,font:{size:10}}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// EXPIRY
+// ══════════════════════════════════════════════════════════════════════════
+async function loadExpiry(){
+  const d=await api('/api/expiry');
+  const statusPill={EXPIRED:'pill-red',CRITICAL:'pill-red',WARNING:'pill-yellow',OK:'pill-green'};
+  $('expTable').innerHTML=d.products.map((p,i)=>{
+    const mc=p.avg_months_left<0?'var(--red)':p.avg_months_left<3?'var(--red)':p.avg_months_left<6?'var(--yellow)':'var(--c3)';
+    return `<tr><td class="mono" style="color:var(--muted)">${i+1}</td><td>${short(p.name,35)}</td><td class="mono" style="color:${mc};font-weight:700">${p.avg_months_left.toFixed(1)} mo</td><td class="mono" style="color:var(--muted2)">${p.units_sold}</td><td class="mono">${p.revenue.toFixed(0)}</td><td><span class="pill ${statusPill[p.status]}">${p.status}</span></td></tr>`;
+  }).join('');
+
+  const ep=d.products.slice(0,15);
+  const eCols=ep.map(p=>p.avg_months_left<0?'rgba(248,113,113,.75)':p.avg_months_left<3?'rgba(248,113,113,.55)':p.avg_months_left<6?'rgba(251,191,36,.7)':'rgba(52,211,153,.6)');
+  safeChart('expChart',{
+    type:'bar',
+    data:{labels:ep.map(p=>short(p.name,22)),datasets:[{label:'Months Left',data:ep.map(p=>p.avg_months_left),backgroundColor:eCols,borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:GR,ticks:{...TK,callback:v=>v+'mo'},title:{display:true,text:'Months Remaining',color:'#475569'}},y:{grid:{display:false},ticks:{...TK,font:{size:10}}}}}
+  });
+}
+
+// Init
+loadOverview();
+</script>
+</body>
+</html>
