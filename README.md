@@ -5,7 +5,9 @@
 ![Dashboard Preview](assets/Animation.gif)
 
 
-A local full-stack analytics system built on real pharmacy transaction data. Flask REST API with 9 endpoints, interactive Chart.js dashboard, and a time-series forecasting engine using **Holt's Double Exponential Smoothing** — all running on your local network with zero cloud dependency.
+A local full-stack analytics system built on real pharmacy transaction data. Flask REST API with 9 endpoints, interactive Chart.js dashboard, and a time-series forecasting engine using **Holt's Double Exponential Smoothing**. Powered by ~94K real transactions.
+
+— all running on your local network with zero cloud dependency.
 
 ---
 
